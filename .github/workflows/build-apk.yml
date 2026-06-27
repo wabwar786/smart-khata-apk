@@ -32,6 +32,30 @@ jobs:
       - name: Generate missing Android project files
         run: flutter create . --platforms=android
 
+      - name: Add Android Internet permission for release APK
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          text = manifest.read_text(encoding='utf-8')
+          permission = '    <uses-permission android:name="android.permission.INTERNET" />'
+          if 'android.permission.INTERNET' not in text:
+              text = text.replace(
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n' + permission
+              )
+              manifest.write_text(text, encoding='utf-8')
+          print(manifest.read_text(encoding='utf-8'))
+          PY
+
+      - name: Verify API URL
+        run: |
+          grep -R "smart-khata-production.up.railway.app" lib/config.dart
+          if grep -R "smart-khata-prouction" lib android 2>/dev/null; then
+            echo "Wrong API URL spelling found"
+            exit 1
+          fi
+
       - name: Install dependencies
         run: flutter pub get
 

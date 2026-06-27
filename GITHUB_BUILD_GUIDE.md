@@ -1,50 +1,48 @@
-# Build Smart Khata APK Online with GitHub Actions
+# GitHub APK Build Guide
 
-You do not need to install Flutter on your PC. GitHub Actions will install Flutter online and build the APK for you.
+## 1. Upload files
 
-## 1. Upload to GitHub
-
-1. Create a new GitHub repository, for example `smart-khata-flutter-app`.
-2. Upload all files from this folder to the repository root.
-3. Make sure these files are in the root:
+Upload this project to GitHub. These files must be in repository root:
 
 ```text
 pubspec.yaml
 lib/main.dart
+lib/config.dart
 .github/workflows/build-apk.yml
 ```
 
-## 2. Run online build
+## 2. Run build
 
-1. Open your GitHub repository.
-2. Go to **Actions**.
-3. Select **Build Smart Khata Android APK**.
-4. Click **Run workflow**.
-5. Wait until the build is complete.
+Go to:
+
+```text
+GitHub repo → Actions → Build Smart Khata Android APK → Run workflow
+```
 
 ## 3. Download APK
 
-1. Open the completed workflow run.
-2. Scroll down to **Artifacts**.
-3. Download `smart-khata-release-apk`.
-4. Extract it.
-5. Install `app-release.apk` on your Android phone.
-
-## 4. API URL
-
-The app is already configured to use:
+After successful build, download:
 
 ```text
-https://smart-khata-production.up.railway.app
+smart-khata-release-apk
 ```
 
-This is inside:
+Inside it:
 
 ```text
-lib/config.dart
+app-release.apk
 ```
 
-## 5. When you change code
+## 4. Install fresh APK
 
-Every time you push code to GitHub, GitHub Actions will automatically build a new APK.
-You can also manually run the workflow from the Actions tab.
+Uninstall old Smart Khata app first, then install the new APK.
+
+## Why this version is important
+
+The old release APK could show this error:
+
+```text
+SocketException: Failed host lookup
+```
+
+The common reason is missing Android Internet permission in release build. This workflow adds the permission automatically after `flutter create` generates Android files.
