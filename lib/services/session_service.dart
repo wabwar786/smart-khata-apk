@@ -19,6 +19,7 @@ class SessionService {
   static const _businessIdKey = 'businessPublicId';
   static const _businessNameKey = 'businessName';
   static const _userNameKey = 'userName';
+  static const _onboardingKey = 'onboardingCompleted';
 
   static Future<void> save({
     required String token,
@@ -37,9 +38,7 @@ class SessionService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
     final businessId = prefs.getString(_businessIdKey);
-    if (token == null || token.isEmpty || businessId == null || businessId.isEmpty) {
-      return null;
-    }
+    if (token == null || token.isEmpty || businessId == null || businessId.isEmpty) return null;
     return SessionData(
       token: token,
       businessPublicId: businessId,
@@ -54,5 +53,15 @@ class SessionService {
     await prefs.remove(_businessIdKey);
     await prefs.remove(_businessNameKey);
     await prefs.remove(_userNameKey);
+  }
+
+  static Future<bool> onboardingCompleted() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_onboardingKey) ?? false;
+  }
+
+  static Future<void> setOnboardingCompleted() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_onboardingKey, true);
   }
 }

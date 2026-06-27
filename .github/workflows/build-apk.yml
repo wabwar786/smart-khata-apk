@@ -34,14 +34,31 @@ jobs:
           p = Path('android/app/src/main/AndroidManifest.xml')
           s = p.read_text()
           old = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
-          new = old + '\n    <uses-permission android:name="android.permission.INTERNET" />'
+          new = old + '\n    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.READ_CONTACTS" />'
           s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+          fi
+
+      - name: Ensure Android contacts permission
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "android.permission.READ_CONTACTS" "$MANIFEST"; then
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          old = '<uses-permission android:name="android.permission.INTERNET" />'
+          s = s.replace(old, old + '\n    <uses-permission android:name="android.permission.READ_CONTACTS" />', 1)
           p.write_text(s)
           PY
           fi
 
       - name: Flutter pub get
         run: flutter pub get
+
+      - name: Generate launcher icons
+        run: dart run flutter_launcher_icons
 
       - name: Analyze
         run: flutter analyze lib --no-fatal-infos --no-fatal-warnings

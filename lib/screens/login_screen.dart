@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../services/api_client.dart';
 import '../services/session_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/json_utils.dart';
 import '../widgets/error_box.dart';
-import '../widgets/loading_button.dart';
-import '../widgets/pro_widgets.dart';
+import '../widgets/sk_widgets.dart';
 import 'home_shell.dart';
-import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,110 +17,112 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailPhone = TextEditingController();
-  final _password = TextEditingController();
+  final _phone = TextEditingController();
+  final _otp = TextEditingController();
+  bool _otpSent = false;
   bool _loading = false;
   String _error = '';
+  String _normalizedPhone = '';
+  String _devOtp = '';
 
   @override
-  void dispose() {
-    _emailPhone.dispose();
-    _password.dispose();
-    super.dispose();
+  void dispose() { _phone.dispose(); _otp.dispose(); super.dispose(); }
+
+  String _normalize(String value) {
+    var digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('0')) digits = digits.substring(1);
+    if (!digits.startsWith('92')) digits = '92$digits';
+    return digits;
   }
 
-  Future<Map<String, dynamic>> _resolveBusiness(String token, Map<String, dynamic> loginResponse) async {
-    final directBusiness = JsonUtils.map(loginResponse['business']);
+  Future<Map<String, dynamic>> _resolveBusiness(String token, Map<String, dynamic> res) async {
+    final directBusiness = JsonUtils.map(res['business']);
     if (JsonUtils.str(directBusiness['publicId']).isNotEmpty) return directBusiness;
-
     final listResponse = await ApiClient.instance.getWithToken('/api/auth/businesses', token);
     final businesses = JsonUtils.list(listResponse['data']);
-    if (businesses.isEmpty) {
-      throw ApiException('Login successful, but no business is assigned to this user.');
-    }
+    if (businesses.isEmpty) throw ApiException('Login successful, but no business found.');
     return JsonUtils.map(businesses.first);
   }
 
-  Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _loading = true;
-      _error = '';
-    });
+  Future<void> _requestOtp() async {
+    final phone = _normalize(_phone.text);
+    if (phone.length < 12) { setState(() => _error = 'Please enter valid WhatsApp number.'); return; }
+    setState(() { _loading = true; _error = ''; _devOtp = ''; });
     try {
-      final res = await ApiClient.instance.post('/api/auth/login', {
-        'emailOrPhone': _emailPhone.text.trim(),
-        'password': _password.text,
-      }, auth: false);
+      final res = await ApiClient.instance.post('/api/auth/request-otp', {'phoneNumber': phone, 'countryCode': AppConfig.defaultCountryCode}, auth: false);
+      setState(() {
+        _normalizedPhone = phone;
+        _otpSent = true;
+        _devOtp = JsonUtils.str(res['devOtp']);
+        if (_devOtp.isNotEmpty) _otp.text = _devOtp;
+      });
+    } catch (e) { setState(() => _error = e.toString()); }
+    finally { if (mounted) setState(() => _loading = false); }
+  }
 
+  Future<void> _verifyOtp() async {
+    if (_otp.text.trim().length < 4) { setState(() => _error = 'Please enter OTP.'); return; }
+    setState(() { _loading = true; _error = ''; });
+    try {
+      final res = await ApiClient.instance.post('/api/auth/verify-otp', {'phoneNumber': _normalizedPhone, 'otp': _otp.text.trim()}, auth: false);
       final token = JsonUtils.str(res['token']);
       if (token.isEmpty) throw ApiException('Login response missing token.');
       final user = JsonUtils.map(res['user']);
       final business = await _resolveBusiness(token, res);
-
-      final businessPublicId = JsonUtils.str(business['publicId']);
-      if (businessPublicId.isEmpty) throw ApiException('Business public id is missing.');
-
       await SessionService.save(
         token: token,
-        businessPublicId: businessPublicId,
+        businessPublicId: JsonUtils.str(business['publicId']),
         businessName: JsonUtils.str(business['businessName'], 'My Business'),
         userName: JsonUtils.str(user['fullName'], 'User'),
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()));
-    } catch (e) {
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+    } catch (e) { setState(() => _error = e.toString()); }
+    finally { if (mounted) setState(() => _loading = false); }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(22),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Center(child: AppBrandMark(size: 72)),
-                    const SizedBox(height: 18),
-                    const Text('Welcome back', textAlign: TextAlign.center, style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
-                    const SizedBox(height: 6),
-                    const Text('Login to manage sales, customers, stock and payments.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF64748B))),
-                    const SizedBox(height: 26),
-                    ErrorBox(_error),
-                    TextFormField(
-                      controller: _emailPhone,
-                      decoration: const InputDecoration(prefixIcon: Icon(Icons.person_outline_rounded), labelText: 'Email or Phone'),
-                      validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _password,
-                      decoration: const InputDecoration(prefixIcon: Icon(Icons.lock_outline_rounded), labelText: 'Password'),
-                      obscureText: true,
-                      validator: (v) => v == null || v.length < 6 ? 'Minimum 6 characters' : null,
-                    ),
-                    const SizedBox(height: 20),
-                    LoadingButton(loading: _loading, text: 'Login', onPressed: _login),
-                    const SizedBox(height: 14),
-                    TextButton(
-                      onPressed: _loading ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
-                      child: const Text('Create new account'),
-                    ),
-                  ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height - 100),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const SizedBox(height: 18),
+              const Row(children: [SkLogo(size: 54), SizedBox(width: 14), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Smart Khata', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.primary)), Text('Business khata, POS & inventory', style: AppText.small)]))]),
+              const SizedBox(height: 44),
+              Text(_otpSent ? 'Enter OTP' : 'Enter WhatsApp Number', style: AppText.h1),
+              const SizedBox(height: 8),
+              Text(_otpSent ? 'OTP sent on WhatsApp to +$_normalizedPhone' : 'Secure and easy login facility', style: const TextStyle(fontSize: 14, color: AppColors.muted, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 26),
+              ErrorBox(_error),
+              if (!_otpSent) ...[
+                TextField(
+                  controller: _phone,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(prefixIcon: Icon(Icons.phone_android_rounded), prefixText: '+92 ', labelText: 'WhatsApp mobile number', hintText: '3001234567'),
                 ),
-              ),
-            ),
+                const SizedBox(height: 18),
+                PillButton(text: _loading ? 'Sending...' : 'SEND OTP', icon: Icons.send_rounded, onTap: _loading ? null : _requestOtp),
+              ] else ...[
+                TextField(
+                  controller: _otp,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: const InputDecoration(counterText: '', prefixIcon: Icon(Icons.lock_clock_rounded), labelText: 'OTP Code'),
+                ),
+                if (_devOtp.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Demo OTP: $_devOtp', style: const TextStyle(color: AppColors.orange, fontWeight: FontWeight.w800))),
+                const SizedBox(height: 18),
+                PillButton(text: _loading ? 'Verifying...' : 'VERIFY & LOGIN', icon: Icons.verified_rounded, onTap: _loading ? null : _verifyOtp),
+                const SizedBox(height: 10),
+                TextButton(onPressed: _loading ? null : _requestOtp, child: const Text('Resend OTP')),
+                TextButton(onPressed: _loading ? null : () => setState(() { _otpSent = false; _otp.clear(); _error = ''; }), child: const Text('Change number')),
+              ],
+              const Spacer(),
+              Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.sky, borderRadius: BorderRadius.circular(18)), child: const Text('Your WhatsApp API key is not stored in APK. App calls Smart Khata backend, and backend sends OTP through WhatsApp engine securely.', style: AppText.small)),
+            ]),
           ),
         ),
       ),

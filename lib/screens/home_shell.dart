@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../services/session_service.dart';
-import 'customers/customer_list_screen.dart';
+import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
-import 'invoices/invoice_list_screen.dart';
+import 'inventory/inventory_home_screen.dart';
 import 'login_screen.dart';
-import 'more/more_screen.dart';
-import 'products/product_list_screen.dart';
+import 'pos/pos_screen.dart';
+import 'shop/your_shop_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
-
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
@@ -18,57 +17,37 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   SessionData? _session;
-  int _refreshTick = 0;
+  int _refresh = 0;
 
   @override
-  void initState() {
-    super.initState();
-    SessionService.get().then((s) {
-      if (mounted) setState(() => _session = s);
-    });
-  }
+  void initState() { super.initState(); SessionService.get().then((s) { if (mounted) setState(() => _session = s); }); }
 
   Future<void> _logout() async {
     await SessionService.clear();
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (_) => false,
-    );
+    Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
   }
-
-  void _refreshAll() => setState(() => _refreshTick++);
 
   @override
   Widget build(BuildContext context) {
     final screens = [
-      DashboardScreen(key: ValueKey('dash-$_refreshTick'), onDataChanged: _refreshAll),
-      CustomerListScreen(key: ValueKey('customers-$_refreshTick')),
-      ProductListScreen(key: ValueKey('products-$_refreshTick')),
-      InvoiceListScreen(key: ValueKey('invoices-$_refreshTick')),
-      MoreScreen(onLogout: _logout, onDataChanged: _refreshAll),
+      DashboardScreen(key: ValueKey('home-$_refresh'), onDataChanged: () => setState(() => _refresh++)),
+      PosScreen(key: ValueKey('pos-$_refresh'), onSaved: () => setState(() => _refresh++)),
+      InventoryHomeScreen(key: ValueKey('inv-$_refresh'), onChanged: () => setState(() => _refresh++)),
+      YourShopScreen(key: ValueKey('shop-$_refresh')),
     ];
-
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_session?.businessName ?? 'Smart Khata', style: const TextStyle(fontWeight: FontWeight.w900)),
-            if (_session != null)
-              Text('Hello, ${_session!.userName}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
-          ],
-        ),
+      appBar: _index == 1 ? null : AppBar(
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_session?.businessName ?? 'Smart Khata', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 19)),
+          const Text('Customers • Suppliers • Inventory', style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600)),
+        ]),
         actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _refreshAll,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: _logout,
-            icon: const Icon(Icons.logout_rounded),
+          IconButton(onPressed: () => setState(() => _refresh++), icon: const Icon(Icons.refresh_rounded)),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.menu_rounded, size: 30),
+            onSelected: (v) { if (v == 'logout') _logout(); },
+            itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('Logout'))],
           ),
         ],
       ),
@@ -77,11 +56,10 @@ class _HomeShellState extends State<HomeShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_rounded), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.people_alt_rounded), label: 'Customers'),
-          NavigationDestination(icon: Icon(Icons.inventory_2_rounded), label: 'Products'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_rounded), label: 'Invoices'),
-          NavigationDestination(icon: Icon(Icons.menu_rounded), label: 'More'),
+          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.point_of_sale_rounded), label: 'POS / Sale'),
+          NavigationDestination(icon: Icon(Icons.inventory_2_rounded), label: 'Inventory'),
+          NavigationDestination(icon: Icon(Icons.storefront_rounded), label: 'Your Shop'),
         ],
       ),
     );
