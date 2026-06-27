@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
 import '../services/session_service.dart';
+import '../utils/json_utils.dart';
 import '../widgets/error_box.dart';
 import '../widgets/loading_button.dart';
+import '../widgets/pro_widgets.dart';
 import 'home_shell.dart';
 import 'signup_screen.dart';
 
@@ -28,6 +30,18 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  Future<Map<String, dynamic>> _resolveBusiness(String token, Map<String, dynamic> loginResponse) async {
+    final directBusiness = JsonUtils.map(loginResponse['business']);
+    if (JsonUtils.str(directBusiness['publicId']).isNotEmpty) return directBusiness;
+
+    final listResponse = await ApiClient.instance.getWithToken('/api/auth/businesses', token);
+    final businesses = JsonUtils.list(listResponse['data']);
+    if (businesses.isEmpty) {
+      throw ApiException('Login successful, but no business is assigned to this user.');
+    }
+    return JsonUtils.map(businesses.first);
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -40,13 +54,19 @@ class _LoginScreenState extends State<LoginScreen> {
         'password': _password.text,
       }, auth: false);
 
-      final business = (res['business'] ?? {}) as Map<String, dynamic>;
-      final user = (res['user'] ?? {}) as Map<String, dynamic>;
+      final token = JsonUtils.str(res['token']);
+      if (token.isEmpty) throw ApiException('Login response missing token.');
+      final user = JsonUtils.map(res['user']);
+      final business = await _resolveBusiness(token, res);
+
+      final businessPublicId = JsonUtils.str(business['publicId']);
+      if (businessPublicId.isEmpty) throw ApiException('Business public id is missing.');
+
       await SessionService.save(
-        token: res['token'].toString(),
-        businessPublicId: business['publicId'].toString(),
-        businessName: business['businessName']?.toString() ?? 'My Business',
-        userName: user['fullName']?.toString() ?? 'User',
+        token: token,
+        businessPublicId: businessPublicId,
+        businessName: JsonUtils.str(business['businessName'], 'My Business'),
+        userName: JsonUtils.str(user['fullName'], 'User'),
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()));
@@ -63,7 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(22),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
               child: Form(
@@ -71,28 +91,30 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(Icons.account_balance_wallet_rounded, size: 64),
-                    const SizedBox(height: 12),
-                    const Text('Login to Smart Khata', textAlign: TextAlign.center, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 24),
+                    const Center(child: AppBrandMark(size: 72)),
+                    const SizedBox(height: 18),
+                    const Text('Welcome back', textAlign: TextAlign.center, style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+                    const SizedBox(height: 6),
+                    const Text('Login to manage sales, customers, stock and payments.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF64748B))),
+                    const SizedBox(height: 26),
                     ErrorBox(_error),
                     TextFormField(
                       controller: _emailPhone,
-                      decoration: const InputDecoration(labelText: 'Email or Phone'),
+                      decoration: const InputDecoration(prefixIcon: Icon(Icons.person_outline_rounded), labelText: 'Email or Phone'),
                       validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     TextFormField(
                       controller: _password,
-                      decoration: const InputDecoration(labelText: 'Password'),
+                      decoration: const InputDecoration(prefixIcon: Icon(Icons.lock_outline_rounded), labelText: 'Password'),
                       obscureText: true,
                       validator: (v) => v == null || v.length < 6 ? 'Minimum 6 characters' : null,
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
                     LoadingButton(loading: _loading, text: 'Login', onPressed: _login),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     TextButton(
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
+                      onPressed: _loading ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())),
                       child: const Text('Create new account'),
                     ),
                   ],

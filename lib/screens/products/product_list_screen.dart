@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/product.dart';
 import '../../services/api_client.dart';
 import '../../utils/formatters.dart';
+import '../../utils/json_utils.dart';
 import 'product_form_screen.dart';
 
 class ProductListScreen extends StatefulWidget {
@@ -30,8 +31,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
     });
     try {
       final res = await ApiClient.instance.get('/api/products', query: {'limit': 100});
-      final rows = (res['data'] as List<dynamic>? ?? []);
-      setState(() => _products = rows.map((e) => Product.fromJson(e as Map<String, dynamic>)).toList());
+      final rows = JsonUtils.list(res['data']);
+      setState(() => _products = rows.map((e) => Product.fromJson(JsonUtils.map(e))).toList());
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

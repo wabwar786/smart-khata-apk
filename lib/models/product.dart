@@ -1,3 +1,5 @@
+import '../utils/json_utils.dart';
+
 class Product {
   final String publicId;
   final String productName;
@@ -5,9 +7,9 @@ class Product {
   final String productType;
   final int unitId;
   final String? unitCode;
-  final String salePrice;
-  final String purchasePrice;
-  final String currentStock;
+  final double salePrice;
+  final double purchasePrice;
+  final double currentStock;
 
   Product({
     required this.publicId,
@@ -23,15 +25,15 @@ class Product {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      publicId: json['publicId']?.toString() ?? '',
-      productName: json['productName']?.toString() ?? '',
-      sku: json['sku']?.toString(),
-      productType: json['productType']?.toString() ?? 'PRODUCT',
-      unitId: int.tryParse(json['unitId']?.toString() ?? '1') ?? 1,
-      unitCode: json['unitCode']?.toString(),
-      salePrice: json['salePrice']?.toString() ?? '0',
-      purchasePrice: json['purchasePrice']?.toString() ?? '0',
-      currentStock: json['currentStock']?.toString() ?? '0',
+      publicId: JsonUtils.str(json['publicId']),
+      productName: JsonUtils.str(json['productName']),
+      sku: JsonUtils.str(json['sku'], ''),
+      productType: JsonUtils.str(json['productType'], 'PRODUCT'),
+      unitId: JsonUtils.integer(json['unitId'], 1),
+      unitCode: JsonUtils.str(json['unitCode'], ''),
+      salePrice: JsonUtils.number(json['salePrice']),
+      purchasePrice: JsonUtils.number(json['purchasePrice']),
+      currentStock: JsonUtils.number(json['currentStock']),
     );
   }
 }

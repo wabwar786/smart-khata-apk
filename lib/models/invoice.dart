@@ -1,10 +1,12 @@
+import '../utils/json_utils.dart';
+
 class SalesInvoice {
   final String publicId;
   final String invoiceNo;
   final String customerName;
-  final String grandTotal;
-  final String paidAmount;
-  final String balanceAmount;
+  final double grandTotal;
+  final double paidAmount;
+  final double balanceAmount;
   final String paymentStatus;
   final String invoiceDate;
 
@@ -21,14 +23,14 @@ class SalesInvoice {
 
   factory SalesInvoice.fromJson(Map<String, dynamic> json) {
     return SalesInvoice(
-      publicId: json['publicId']?.toString() ?? '',
-      invoiceNo: json['invoiceNo']?.toString() ?? '',
-      customerName: json['customerName']?.toString() ?? 'Cash Customer',
-      grandTotal: json['grandTotal']?.toString() ?? '0',
-      paidAmount: json['paidAmount']?.toString() ?? '0',
-      balanceAmount: json['balanceAmount']?.toString() ?? '0',
-      paymentStatus: json['paymentStatus']?.toString() ?? '',
-      invoiceDate: json['invoiceDate']?.toString() ?? '',
+      publicId: JsonUtils.str(json['publicId']),
+      invoiceNo: JsonUtils.str(json['invoiceNo']),
+      customerName: JsonUtils.str(json['customerName'], 'Cash Customer'),
+      grandTotal: JsonUtils.number(json['grandTotal']),
+      paidAmount: JsonUtils.number(json['paidAmount']),
+      balanceAmount: JsonUtils.number(json['balanceAmount']),
+      paymentStatus: JsonUtils.str(json['paymentStatus']),
+      invoiceDate: JsonUtils.str(json['invoiceDate']),
     );
   }
 }

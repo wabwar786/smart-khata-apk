@@ -4,6 +4,7 @@ import '../../models/customer.dart';
 import '../../models/product.dart';
 import '../../services/api_client.dart';
 import '../../utils/formatters.dart';
+import '../../utils/json_utils.dart';
 import '../../widgets/error_box.dart';
 import '../../widgets/loading_button.dart';
 
@@ -28,6 +29,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   List<Product> _products = [];
   Customer? _selectedCustomer;
   Product? _selectedProduct;
+  String _paymentMethod = 'Cash';
 
   @override
   void initState() {
@@ -45,25 +47,18 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   }
 
   Future<void> _loadMasterData() async {
-    setState(() {
-      _loading = true;
-      _error = '';
-    });
+    setState(() { _loading = true; _error = ''; });
     try {
       final customerRes = await ApiClient.instance.get('/api/customers', query: {'limit': 100});
       final productRes = await ApiClient.instance.get('/api/products', query: {'limit': 100});
-      final customers = (customerRes['data'] as List<dynamic>? ?? [])
-          .map((e) => Customer.fromJson(e as Map<String, dynamic>))
-          .toList();
-      final products = (productRes['data'] as List<dynamic>? ?? [])
-          .map((e) => Product.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final customers = JsonUtils.list(customerRes['data']).map((e) => Customer.fromJson(JsonUtils.map(e))).toList();
+      final products = JsonUtils.list(productRes['data']).map((e) => Product.fromJson(JsonUtils.map(e))).toList();
       setState(() {
         _customers = customers;
         _products = products;
         if (products.isNotEmpty) {
           _selectedProduct = products.first;
-          _unitPrice.text = products.first.salePrice;
+          _unitPrice.text = products.first.salePrice.toStringAsFixed(0);
         }
         if (customers.isNotEmpty) _selectedCustomer = customers.first;
       });
@@ -80,14 +75,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedProduct == null) {
-      setState(() => _error = 'Please add/select product first.');
-      return;
-    }
-    setState(() {
-      _saving = true;
-      _error = '';
-    });
+    if (_selectedProduct == null) { setState(() => _error = 'Please add/select product first.'); return; }
+    setState(() { _saving = true; _error = ''; });
     try {
       await ApiClient.instance.post('/api/sales-invoices', {
         'customerPublicId': _selectedCustomer?.publicId,
@@ -102,7 +91,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           }
         ],
         'paidAmount': double.tryParse(_paidAmount.text.trim()) ?? 0,
-        'paymentMethod': 'Cash',
+        'paymentMethod': _paymentMethod,
         'notes': _notes.text.trim(),
       });
       if (!mounted) return;
@@ -116,9 +105,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     return Scaffold(
       appBar: AppBar(title: const Text('Create Invoice')),
       body: SingleChildScrollView(
@@ -132,48 +119,35 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               DropdownButtonFormField<Customer?>(
                 value: _selectedCustomer,
                 decoration: const InputDecoration(labelText: 'Customer'),
-                items: [
-                  const DropdownMenuItem<Customer?>(value: null, child: Text('Cash Customer')),
-                  ..._customers.map((c) => DropdownMenuItem<Customer?>(value: c, child: Text(c.customerName))),
-                ],
+                items: [const DropdownMenuItem<Customer?>(value: null, child: Text('Cash Customer')), ..._customers.map((c) => DropdownMenuItem<Customer?>(value: c, child: Text(c.customerName)))],
                 onChanged: (v) => setState(() => _selectedCustomer = v),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Product>(
                 value: _selectedProduct,
                 decoration: const InputDecoration(labelText: 'Product / Service'),
-                items: _products.map((p) => DropdownMenuItem<Product>(value: p, child: Text(p.productName))).toList(),
-                onChanged: (v) => setState(() {
-                  _selectedProduct = v;
-                  if (v != null) _unitPrice.text = v.salePrice;
-                }),
+                items: _products.map((p) => DropdownMenuItem<Product>(value: p, child: Text('${p.productName} • ${Formatters.amount(p.salePrice)}'))).toList(),
+                onChanged: (v) => setState(() { _selectedProduct = v; if (v != null) _unitPrice.text = v.salePrice.toStringAsFixed(0); }),
                 validator: (v) => v == null ? 'Required' : null,
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _qty,
-                decoration: const InputDecoration(labelText: 'Quantity'),
-                keyboardType: TextInputType.number,
-                onChanged: (_) => setState(() {}),
-                validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Invalid qty' : null,
+              Row(
+                children: [
+                  Expanded(child: TextFormField(controller: _qty, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number, onChanged: (_) => setState(() {}), validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Invalid qty' : null)),
+                  const SizedBox(width: 12),
+                  Expanded(child: TextFormField(controller: _unitPrice, decoration: const InputDecoration(labelText: 'Unit Price'), keyboardType: TextInputType.number, onChanged: (_) => setState(() {}), validator: (v) => (double.tryParse(v ?? '') ?? -1) < 0 ? 'Invalid price' : null)),
+                ],
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _unitPrice,
-                decoration: const InputDecoration(labelText: 'Unit Price'),
-                keyboardType: TextInputType.number,
-                onChanged: (_) => setState(() {}),
-                validator: (v) => (double.tryParse(v ?? '') ?? -1) < 0 ? 'Invalid price' : null,
-              ),
+              Card(child: ListTile(title: const Text('Invoice Total'), trailing: Text(Formatters.amount(_total), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)))),
               const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  title: const Text('Invoice Total'),
-                  trailing: Text(Formatters.amount(_total), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ),
+              Row(
+                children: [
+                  Expanded(child: TextFormField(controller: _paidAmount, decoration: const InputDecoration(labelText: 'Paid Amount'), keyboardType: TextInputType.number)),
+                  const SizedBox(width: 12),
+                  Expanded(child: DropdownButtonFormField<String>(value: _paymentMethod, decoration: const InputDecoration(labelText: 'Method'), items: const ['Cash','Bank','JazzCash','EasyPaisa','Card','Cheque'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => setState(() => _paymentMethod = v ?? 'Cash'))),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextFormField(controller: _paidAmount, decoration: const InputDecoration(labelText: 'Paid Amount'), keyboardType: TextInputType.number),
               const SizedBox(height: 12),
               TextFormField(controller: _notes, decoration: const InputDecoration(labelText: 'Notes'), maxLines: 3),
               const SizedBox(height: 18),

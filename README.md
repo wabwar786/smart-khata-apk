@@ -1,28 +1,45 @@
-# Smart Khata Flutter App
+# Smart Khata Flutter App - Enhanced MVP
 
-This package builds the Smart Khata Android APK online using GitHub Actions. No local Flutter installation is required.
+This is the enhanced Android MVP for Smart Khata. It is connected to:
 
-API URL:
-
-```text
 https://smart-khata-production.up.railway.app
-```
 
-## Important Android fix
+## Included modules
 
-This version patches `android/app/src/main/AndroidManifest.xml` during the GitHub Actions build and adds:
+- Login/signup with fixed login business selection
+- Professional dashboard UI
+- Dashboard KPI cards
+- Sales trend chart
+- Customers list/add/detail
+- Customer ledger/khata screen
+- Products/services list/add
+- Sales invoice list/create
+- Receive payment module
+- Payments list
+- Reminders list/add
+- Subscription status screen
+- More modules screen
+- GitHub Actions online APK build
+- Android internet permission auto-fix in build workflow
 
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-```
+## Build online with GitHub Actions
 
-This is required for the release APK to call the Railway API.
-
-## Build APK online
-
-1. Upload all files to GitHub repository root.
-2. Go to GitHub → Actions.
-3. Run `Build Smart Khata Android APK`.
-4. Download artifact `smart-khata-release-apk`.
+1. Upload all files to GitHub repo root.
+2. Go to Actions.
+3. Run **Build Smart Khata Android APK**.
+4. Download the artifact `smart-khata-release-apk`.
 5. Uninstall old APK from phone.
 6. Install the new APK.
+
+## API base URL
+
+`lib/config.dart`
+
+```dart
+class AppConfig {
+  static const String appName = 'Smart Khata';
+  static const String apiBaseUrl = 'https://smart-khata-production.up.railway.app';
+}
+```
+
+Do not add `/api/auth/login` in the base URL.

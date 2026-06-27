@@ -2,9 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
 import '../utils/formatters.dart';
+import '../utils/json_utils.dart';
+import '../widgets/pro_widgets.dart';
+import 'customers/customer_form_screen.dart';
+import 'invoices/create_invoice_screen.dart';
+import 'payments/receive_payment_screen.dart';
+import 'products/product_form_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final VoidCallback? onDataChanged;
+  const DashboardScreen({super.key, this.onDataChanged});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -14,6 +21,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _loading = true;
   String _error = '';
   Map<String, dynamic> _summary = {};
+  List<SalesPoint> _salesTrend = [];
 
   @override
   void initState() {
@@ -27,12 +35,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _error = '';
     });
     try {
-      final res = await ApiClient.instance.get('/api/dashboard/summary');
-      setState(() => _summary = (res['data'] ?? {}) as Map<String, dynamic>);
+      final summaryRes = await ApiClient.instance.get('/api/dashboard/summary');
+      final salesRes = await ApiClient.instance.get('/api/dashboard/sales-daily', query: {'days': 7});
+      final rows = JsonUtils.list(salesRes['data']);
+      setState(() {
+        _summary = JsonUtils.map(summaryRes['data']);
+        _salesTrend = rows.map((e) {
+          final row = JsonUtils.map(e);
+          final date = row['sale_date'] ?? row['saleDate'];
+          return SalesPoint(
+            label: Formatters.date(date),
+            shortLabel: Formatters.shortDate(date),
+            value: JsonUtils.number(row['total_sales'] ?? row['totalSales']),
+          );
+        }).toList();
+      });
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _open(Widget screen) async {
+    final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => screen));
+    if (changed == true) {
+      await _load();
+      widget.onDataChanged?.call();
     }
   }
 
@@ -55,40 +84,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
+    final receivable = JsonUtils.number(_summary['receivable']);
+    final todaySales = JsonUtils.number(_summary['todaySales']);
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
         children: [
-          const Text('Dashboard', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          GradientHeaderCard(
+            title: 'Today sales',
+            subtitle: '${JsonUtils.integer(_summary['todayInvoices'])} invoices today',
+            amount: Formatters.amount(todaySales),
+            footer: receivable > 0 ? 'Receivable pending: ${Formatters.amount(receivable)}' : 'No receivable balance yet. Keep selling!',
+            icon: Icons.trending_up_rounded,
+          ),
           const SizedBox(height: 16),
-          _Card(title: 'Today Sales', value: Formatters.amount(_summary['todaySales']), icon: Icons.payments_rounded),
-          _Card(title: 'Today Invoices', value: _summary['todayInvoices']?.toString() ?? '0', icon: Icons.receipt_rounded),
-          _Card(title: 'Receivable', value: Formatters.amount(_summary['receivable']), icon: Icons.account_balance_wallet_rounded),
-          _Card(title: 'Customers', value: _summary['totalCustomers']?.toString() ?? '0', icon: Icons.people_alt_rounded),
-          _Card(title: 'Products', value: _summary['totalProducts']?.toString() ?? '0', icon: Icons.inventory_rounded),
-          _Card(title: 'Low Stock', value: _summary['lowStock']?.toString() ?? '0', icon: Icons.warning_rounded),
+          LayoutBuilder(
+            builder: (context, c) {
+              final width = (c.maxWidth - 12) / 2;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  SizedBox(width: width, height: 152, child: StatCard(title: 'Receivable', value: Formatters.amount(receivable), icon: Icons.account_balance_wallet_rounded, color: const Color(0xFF2563EB), caption: 'Customer pending')),
+                  SizedBox(width: width, height: 152, child: StatCard(title: 'Customers', value: JsonUtils.str(_summary['totalCustomers'], '0'), icon: Icons.people_alt_rounded, color: const Color(0xFF7C3AED), caption: 'Total parties')),
+                  SizedBox(width: width, height: 152, child: StatCard(title: 'Products', value: JsonUtils.str(_summary['totalProducts'], '0'), icon: Icons.inventory_2_rounded, color: const Color(0xFFEA580C), caption: 'Stock items/services')),
+                  SizedBox(width: width, height: 152, child: StatCard(title: 'Low Stock', value: JsonUtils.str(_summary['lowStock'], '0'), icon: Icons.warning_amber_rounded, color: const Color(0xFFDC2626), caption: 'Needs attention')),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            title: 'Sales trend',
+            subtitle: 'Last 7 days sales performance',
+            child: SalesMiniChart(data: _salesTrend),
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            title: 'Quick actions',
+            subtitle: 'Daily work shortcuts',
+            child: Column(
+              children: [
+                QuickActionTile(title: 'Create invoice', subtitle: 'Add sale and update ledger', icon: Icons.receipt_long_rounded, onTap: () => _open(const CreateInvoiceScreen())),
+                const SizedBox(height: 10),
+                QuickActionTile(title: 'Receive payment', subtitle: 'Record cash/bank payment', icon: Icons.payments_rounded, onTap: () => _open(const ReceivePaymentScreen())),
+                const SizedBox(height: 10),
+                QuickActionTile(title: 'Add customer', subtitle: 'Create party/customer record', icon: Icons.person_add_alt_1_rounded, onTap: () => _open(const CustomerFormScreen())),
+                const SizedBox(height: 10),
+                QuickActionTile(title: 'Add product', subtitle: 'Create product or service', icon: Icons.add_box_rounded, onTap: () => _open(const ProductFormScreen())),
+              ],
+            ),
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class _Card extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-
-  const _Card({required this.title, required this.value, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(child: Icon(icon)),
-        title: Text(title),
-        trailing: Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
       ),
     );
   }

@@ -1,3 +1,5 @@
+import '../utils/json_utils.dart';
+
 class Customer {
   final String publicId;
   final String customerName;
@@ -6,7 +8,8 @@ class Customer {
   final String? city;
   final String? address;
   final String? email;
-  final String currentBalance;
+  final double currentBalance;
+  final double creditLimit;
 
   Customer({
     required this.publicId,
@@ -17,18 +20,20 @@ class Customer {
     this.address,
     this.email,
     required this.currentBalance,
+    required this.creditLimit,
   });
 
   factory Customer.fromJson(Map<String, dynamic> json) {
     return Customer(
-      publicId: json['publicId']?.toString() ?? '',
-      customerName: json['customerName']?.toString() ?? '',
-      phoneNumber: json['phoneNumber']?.toString(),
-      whatsAppNumber: json['whatsAppNumber']?.toString(),
-      city: json['city']?.toString(),
-      address: json['address']?.toString(),
-      email: json['email']?.toString(),
-      currentBalance: json['currentBalance']?.toString() ?? '0',
+      publicId: JsonUtils.str(json['publicId']),
+      customerName: JsonUtils.str(json['customerName']),
+      phoneNumber: JsonUtils.str(json['phoneNumber'], ''),
+      whatsAppNumber: JsonUtils.str(json['whatsAppNumber'], ''),
+      city: JsonUtils.str(json['city'], ''),
+      address: JsonUtils.str(json['address'], ''),
+      email: JsonUtils.str(json['email'], ''),
+      currentBalance: JsonUtils.number(json['currentBalance']),
+      creditLimit: JsonUtils.number(json['creditLimit']),
     );
   }
 }
