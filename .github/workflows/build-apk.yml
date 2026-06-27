@@ -28,13 +28,15 @@ jobs:
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
-            python3 - <<'PY'
-from pathlib import Path
-p = Path('android/app/src/main/AndroidManifest.xml')
-s = p.read_text()
-s = s.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">', '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />')
-p.write_text(s)
-PY
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          old = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+          new = old + '\n    <uses-permission android:name="android.permission.INTERNET" />'
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
           fi
 
       - name: Flutter pub get
