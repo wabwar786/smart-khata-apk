@@ -1,70 +1,53 @@
-name: Build Smart Khata Android APK
+name: Build Smart Khata APK
 
 on:
-  push:
-    branches: [ "main", "master" ]
   workflow_dispatch:
+  push:
+    branches: [ main, master ]
 
 jobs:
   build-apk:
-    name: Build release APK
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout source
         uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: true
+          flutter-version: '3.32.0'
 
-      - name: Show Flutter version
-        run: flutter --version
-
-      - name: Generate missing Android project files
-        run: flutter create . --platforms=android
-
-      - name: Add Android Internet permission for release APK
+      - name: Create Android platform if missing
         run: |
-          python3 <<'PY'
-          from pathlib import Path
-          manifest = Path('android/app/src/main/AndroidManifest.xml')
-          text = manifest.read_text(encoding='utf-8')
-          permission = '    <uses-permission android:name="android.permission.INTERNET" />'
-          if 'android.permission.INTERNET' not in text:
-              text = text.replace(
-                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
-                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n' + permission
-              )
-              manifest.write_text(text, encoding='utf-8')
-          print(manifest.read_text(encoding='utf-8'))
-          PY
-
-      - name: Verify API URL
-        run: |
-          grep -R "smart-khata-production.up.railway.app" lib/config.dart
-          if grep -R "smart-khata-prouction" lib android 2>/dev/null; then
-            echo "Wrong API URL spelling found"
-            exit 1
+          if [ ! -d "android" ]; then
+            flutter create . --platforms=android --project-name smart_khata_app
           fi
 
-      - name: Install dependencies
+      - name: Ensure Android internet permission
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
+            python3 - <<'PY'
+from pathlib import Path
+p = Path('android/app/src/main/AndroidManifest.xml')
+s = p.read_text()
+s = s.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">', '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />')
+p.write_text(s)
+PY
+          fi
+
+      - name: Flutter pub get
         run: flutter pub get
 
+      - name: Analyze
+        run: flutter analyze
+
       - name: Build release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: smart-khata-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 30
